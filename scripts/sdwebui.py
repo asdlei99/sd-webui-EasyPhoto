@@ -10,10 +10,12 @@ import numpy as np
 from scripts.easyphoto_utils import ep_logger
 from modules import processing, scripts, sd_models, sd_samplers, shared, sd_vae
 from modules.api.models import *
+from modules.paths import models_path
 from modules.processing import StableDiffusionProcessingImg2Img, StableDiffusionProcessingTxt2Img
 from modules.sd_models import get_closet_checkpoint_match, load_model
 from modules.sd_vae import find_vae_near_checkpoint
 from modules.shared import opts, state
+from modules.timer import Timer
 
 output_pic_dir = os.path.join(os.path.dirname(__file__), "online_files/output")
 
@@ -364,13 +366,18 @@ def i2i_inpaint_call(
         ep_logger.error(f"{message} with Error: {e}")
         origin_sd_model_checkpoint  = ""
         origin_sd_vae               = ""
+    
+    print("origin_sd_model_checkpoint: {}, origin_sd_vae".format(origin_sd_model_checkpoint, origin_sd_vae))
 
     sd_model_checkpoint = get_closet_checkpoint_match(sd_model_checkpoint).model_name
-    vae_near_checkpoint = find_vae_near_checkpoint(sd_vae)
+    vae_near_checkpoint = None
+    if sd_vae is not None:
+        vae_near_checkpoint = find_vae_near_checkpoint(sd_vae)
     if vae_near_checkpoint is not None:
         sd_vae = os.path.basename(vae_near_checkpoint)
     else:
         sd_vae = None
+    print("1. sd_model_checkpoint: {}, sd_vae".format(sd_model_checkpoint, sd_vae))
 
     p_img2img = StableDiffusionProcessingImg2Img(
         sd_model=origin_sd_model_checkpoint,
@@ -423,6 +430,7 @@ def i2i_inpaint_call(
     if sd_vae is not None:
         if origin_sd_vae != sd_vae:
             reload_model('sd_vae', sd_vae)
+    print("2. sd_model_checkpoint: {}, sd_vae".format(sd_model_checkpoint, sd_vae))
 
     processed = processing.process_images(p_img2img)
 
@@ -431,6 +439,7 @@ def i2i_inpaint_call(
     if sd_vae is not None:
         if origin_sd_vae != sd_vae:
             reload_model('sd_vae', origin_sd_vae)
+    print("3. sd_model_checkpoint: {}, sd_vae".format(sd_model_checkpoint, sd_vae))
 
     if len(processed.images) > 1:
         # get the generate image!
@@ -443,3 +452,23 @@ def i2i_inpaint_call(
     else:
         gen_image = processed.images[0]
     return gen_image
+
+
+def get_checkpoint_type(sd_model_checkpoint: str) -> int:
+    """Get the type (1 means SD1; 2 means SD2; 3 means SDXL) 
+    of the stable diffusion model given the checkpoint name `sd_model_checkpoint`.
+    """
+    ckpt_path = os.path.join(models_path, "Stable-diffusion", sd_model_checkpoint)
+    timer = Timer()
+    checkpoint_info = sd_models.CheckpointInfo(ckpt_path)
+    state_dict = sd_models.get_checkpoint_state_dict(checkpoint_info, timer)
+    for k in state_dict.keys():
+        # SD web UI uses `hasattr(model, conditioner)` to check the SDXL model.
+        if k.startswith("conditioner"):
+            return 3
+            break
+        # SD web UI uses `hasattr(model, model.cond_stage_model)` to check the SD2 model.
+        if k.startswith("cond_stage_model.model"):
+            return 2
+            break
+    return 1
