@@ -1,4 +1,3 @@
-from re import M
 import gradio as gr
 from fastapi import FastAPI
 from modules.api import api
