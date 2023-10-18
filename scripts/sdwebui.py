@@ -8,7 +8,7 @@ import modules
 import modules.scripts as scripts
 import numpy as np
 from scripts.easyphoto_utils import ep_logger
-from modules import processing, scripts, sd_models, sd_samplers, shared, sd_vae
+from modules import cache, errors, processing, scripts, sd_models, sd_samplers, shared, sd_vae
 from modules.api.models import *
 from modules.paths import models_path
 from modules.processing import StableDiffusionProcessingImg2Img, StableDiffusionProcessingTxt2Img
@@ -471,4 +471,21 @@ def get_checkpoint_type(sd_model_checkpoint: str) -> int:
         if k.startswith("cond_stage_model.model"):
             return 2
             break
+    return 1
+
+
+def get_lora_type(filename: str) -> int:
+    """Get the type (1 means SD1; 2 means SD2; 3 means SDXL) of the Lora given the path `filename`.
+    Modified from `extensions-builtin/Lora/network.py`.
+    """
+    try:
+        name = os.path.splitext(os.path.basename(filename))[0]
+        read_metadata = lambda filename: sd_models.read_metadata_from_safetensors(filename)
+        metadata = cache.cached_data_for_file("safetensors-metadata", "lora/" + name, filename, read_metadata)
+    except Exception as e:
+        errors.display(e, f"reading lora {filename}")
+    if str(metadata.get('ss_base_model_version', "")).startswith("sdxl_"):
+        return 3
+    elif str(metadata.get('ss_v2', "")) == "True":
+        return 2
     return 1
