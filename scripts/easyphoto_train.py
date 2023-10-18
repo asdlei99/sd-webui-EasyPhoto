@@ -16,6 +16,7 @@ from scripts.easyphoto_config import (easyphoto_outpath_samples, models_path, ca
 from scripts.easyphoto_utils import (check_files_exists_and_download,
                                      check_id_valid)
 from scripts.train_kohya.utils.lora_utils import convert_lora_to_safetensors
+from scripts.sdwebui import get_checkpoint_type
 
 
 python_executable_path = sys.executable
@@ -54,6 +55,14 @@ def easyphoto_train_forward(
 
     if user_id in ids:
         return "User id non-repeatability."
+    
+    checkpoint_type = get_checkpoint_type(sd_model_checkpoint)
+    if checkpoint_type == 2:
+        return "EasyPhoto does not support the SD2 checkpoint: {}.".format(sd_model_checkpoint)
+    sdxl_pipeline_flag = True if checkpoint_type == 3 else False
+
+    if sdxl_pipeline_flag and enable_rl:
+        return "EasyPhoto does not support RL with the SDXL checkpoint: {}.".format(sd_model_checkpoint)
 
     check_files_exists_and_download(check_hash)
     check_hash = False
@@ -116,7 +125,11 @@ def easyphoto_train_forward(
     if not os.path.exists(json_save_path):
         return "Failed to obtain preprocessed metadata.jsonl, please check the preprocessing process."
 
-    train_kohya_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "train_kohya/train_lora.py")
+    if not sdxl_pipeline_flag:
+        train_kohya_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "train_kohya/train_lora.py")
+    else:
+        train_kohya_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "train_kohya/train_lora_sd_XL.py")
+        resolution = 1024
     print("train_file_path : ", train_kohya_path)
     if enable_rl:
         train_ddpo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "train_kohya/train_ddpo.py")
