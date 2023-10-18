@@ -16,7 +16,7 @@ def decode_image_from_base64jpeg(base64_image):
     image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     return image
 
-def post(encoded_image, url='http://0.0.0.0:7860'):
+def post(encoded_image, url='http://0.0.0.0:7860', makeup_transfer=True, makeup_transfer_ratio=0.5):
     datas = json.dumps({
         "user_ids"              : ["test"], 
         "sd_model_checkpoint"   : "Chilloutmix-Ni-pruned-fp16-fix.safetensors",
@@ -40,7 +40,10 @@ def post(encoded_image, url='http://0.0.0.0:7860'):
         "skin_retouching_bool"      : True,
 
         "background_restore"        : False,
-        "tabs"                      : 1
+        "tabs"                      : 1,
+        'makeup_transfer'           : makeup_transfer,
+        'makeup_transfer_ratio'     : makeup_transfer_ratio
+
     })
     r = requests.post(f'{url}/easyphoto/easyphoto_infer_forward', data=datas, timeout=1500)
     data = r.content.decode('utf-8')
